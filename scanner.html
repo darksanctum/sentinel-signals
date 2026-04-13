@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solana Token Scanner - Live Signals | Sentinel Signals</title>
+<meta name="description" content="Free live Solana token scanner. See trending tokens scored by momentum, volume and liquidity. No signup.">
+<link rel="canonical" href="https://darksanctum.github.io/sentinel-signals/scanner.html">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6}
+.container{max-width:900px;margin:0 auto;padding:20px}
+header{text-align:center;padding:30px 0}
+header h1{font-size:2em;color:#fff}header h1 span{color:#8b5cf6}
+header p{color:#888;margin-top:8px}
+.banner{background:#15112a;border:1px solid #8b5cf6;border-radius:10px;padding:15px 20px;margin:20px 0;text-align:center}
+.banner a{color:#8b5cf6;text-decoration:none;font-weight:600}
+.controls{display:flex;gap:10px;margin:20px 0;flex-wrap:wrap;align-items:center}
+.controls button{background:#8b5cf6;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:1em;cursor:pointer;transition:all .2s}
+.controls button:hover{background:#7c3aed}
+.controls button:disabled{opacity:.5;cursor:wait}
+.controls select{background:#111118;color:#e0e0e0;border:1px solid #1a1a2e;padding:10px;border-radius:8px}
+.timer{color:#888;font-size:.85em;margin-left:auto}
+.signal{background:#111118;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:10px 0;transition:all .2s}
+.signal:hover{border-color:#333}
+.signal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.signal-name{color:#fff;font-size:1.15em;font-weight:600}
+.signal-score{font-size:1.3em;font-weight:700}
+.score-high{color:#22c55e}.score-mid{color:#eab308}.score-low{color:#ef4444}
+.signal-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.75em;font-weight:600;margin-left:8px}
+.badge-buy{background:#22c55e20;color:#22c55e}.badge-watch{background:#eab30820;color:#eab308}.badge-avoid{background:#ef444420;color:#ef4444}
+.signal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.signal-stat{background:#0a0a0f;padding:8px 12px;border-radius:6px}
+.signal-stat .label{color:#888;font-size:.75em;text-transform:uppercase}
+.signal-stat .value{color:#fff;font-size:.95em;font-weight:500}
+.signal-stat .green{color:#22c55e}.signal-stat .red{color:#ef4444}
+.signal-link{display:inline-block;margin-top:10px;color:#8b5cf6;text-decoration:none;font-size:.85em}
+.signal-link:hover{text-decoration:underline}
+.empty{text-align:center;padding:60px 20px;color:#888}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid #333;border-top-color:#8b5cf6;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+footer{text-align:center;padding:30px 0;color:#444;font-size:.8em;border-top:1px solid #1a1a2e;margin-top:30px}
+.share-btn{background:#1a1a2e;color:#8b5cf6;border:1px solid #2a2a3e;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.85em;margin-left:10px}
+.share-btn:hover{background:#252535}
+@media(max-width:600px){.signal-grid{grid-template-columns:repeat(2,1fr)}.controls{justify-content:center}}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Sentinel <span>Scanner</span></h1>
+    <p>Live Solana token signals. Scored by momentum, volume and liquidity.</p>
+  </header>
+
+  <div class="banner">
+    Want real-time alerts on your phone? <a href="https://t.me/Ozymandiasz_bot">Get the Telegram bot: @Ozymandiasz_bot</a>
+  </div>
+
+  <div class="controls">
+    <button id="scanBtn" onclick="scan()">Scan Now</button>
+    <select id="chainSel"><option value="solana">Solana</option></select>
+    <button class="share-btn" onclick="sharePage()">Share</button>
+    <span class="timer" id="timer"></span>
+  </div>
+
+  <div id="results"><div class="empty">Click "Scan Now" to analyze trending tokens</div></div>
+
+  <footer>
+    <p>Sentinel Signals is not financial advice. DYOR. 
+    <a href="https://t.me/Ozymandiasz_bot" style="color:#8b5cf6">Telegram Bot</a> | 
+    <a href="https://darksanctum.github.io/sentinel-signals/" style="color:#666">Home</a> |
+    <a href="https://github.com/darksanctum/jupiter-sentinel" style="color:#666">Source</a></p>
+  </footer>
+</div>
+<script>
+let scanning=false,refreshInterval=null;
+const SOL_PRICE=0;
+
+function scoreToken(t){
+  let s=0;
+  const p24=t.priceChange?.h24||0, p5=t.priceChange?.m5||0;
+  const vol=t.volume?.h24||0, liq=t.liquidity?.usd||0;
+  const mc=t.fdv||0;
+  // Momentum (40pts)
+  if(p24>0&&p24<200)s+=Math.min(20,p24/5);
+  if(p5>0&&p5<50)s+=Math.min(10,p5/3);
+  if(p24>100)s-=10; if(p24>500)s-=15;
+  // Volume/Liquidity (25pts)
+  if(liq>0){const vl=vol/liq;if(vl>1&&vl<20)s+=Math.min(15,vl*2);if(vl>20)s-=10;}
+  // Liquidity (20pts)
+  if(liq>100000)s+=8;if(liq>500000)s+=7;if(liq>1000000)s+=5;
+  if(liq<30000)s-=10;
+  // Market cap (15pts)
+  if(mc>100000&&mc<10000000)s+=10;
+  else if(mc>=10000000&&mc<100000000)s+=5;
+  if(mc<50000)s-=10;
+  return Math.max(0,Math.min(100,Math.round(s)));
+}
+
+function riskLevel(t){
+  const liq=t.liquidity?.usd||0, mc=t.fdv||0, p24=t.priceChange?.h24||0;
+  let risk=0;
+  if(liq<50000)risk+=2;if(mc<100000)risk+=2;if(p24>200)risk+=1;if(p24>500)risk+=2;
+  if(risk>=3)return"HIGH";if(risk>=1)return"MEDIUM";return"LOW";
+}
+
+function fmt(n){
+  if(n>=1e9)return(n/1e9).toFixed(2)+'B';
+  if(n>=1e6)return(n/1e6).toFixed(2)+'M';
+  if(n>=1e3)return(n/1e3).toFixed(1)+'K';
+  return n?.toFixed(4)||'?';
+}
+
+function renderSignals(tokens){
+  if(!tokens.length)return'<div class="empty">No trending tokens found. Try again in a moment.</div>';
+  const sorted=tokens.map(t=>({...t,_score:scoreToken(t),_risk:riskLevel(t)})).sort((a,b)=>b._score-a._score);
+  return sorted.map(t=>{
+    const cls=t._score>=65?'high':t._score>=40?'mid':'low';
+    const badge=t._score>=65?'STRONG BUY':t._score>=40?'WATCH':'AVOID';
+    const bcls=t._score>=65?'buy':t._score>=40?'watch':'avoid';
+    const p24=t.priceChange?.h24||0;
+    const dex=t.dexId||'unknown';
+    const pair=t.baseToken?.symbol||'?'+'/'+t.quoteToken?.symbol||'?';
+    const addr=t.pairAddress||t.baseToken?.address||'';
+    const chain=t.chainId||'solana';
+    const url=`https://dexscreener.com/${chain}/${addr}`;
+    return`<div class="signal">
+      <div class="signal-header">
+        <div><span class="signal-name">${t.baseToken?.name||pair}</span>
+        <span class="signal-badge badge-${bcls}">${badge}</span></div>
+        <div class="signal-score score-${cls}">${t._score}/100</div>
+      </div>
+      <div class="signal-grid">
+        <div class="signal-stat"><div class="label">Price</div><div class="value">$${t.priceUsd?Number(t.priceUsd).toPrecision(4):'?'}</div></div>
+        <div class="signal-stat"><div class="label">24h</div><div class="value ${p24>=0?'green':'red'}">${p24>=0?'+':''}${p24.toFixed(1)}%</div></div>
+        <div class="signal-stat"><div class="label">Volume</div><div class="value">$${fmt(t.volume?.h24||0)}</div></div>
+        <div class="signal-stat"><div class="label">Liquidity</div><div class="value">$${fmt(t.liquidity?.usd||0)}</div></div>
+        <div class="signal-stat"><div class="label">Market Cap</div><div class="value">$${fmt(t.fdv||0)}</div></div>
+        <div class="signal-stat"><div class="label">Risk</div><div class="value">${t._risk}</div></div>
+      </div>
+      <a class="signal-link" href="${url}" target="_blank">View on DexScreener</a>
+    </div>`;
+  }).join('');
+}
+
+async function scan(){
+  if(scanning)return;
+  scanning=true;
+  const btn=document.getElementById('scanBtn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Scanning...';
+  document.getElementById('results').innerHTML='<div class="empty"><span class="spinner"></span> Fetching trending tokens from DexScreener...</div>';
+  try{
+    const r=await fetch('https://api.dexscreener.com/token-boosts/latest/v1');
+    const boosts=await r.json();
+    const solTokens=boosts.filter(t=>t.chainId==='solana').slice(0,30);
+    const addresses=solTokens.map(t=>t.tokenAddress).join(',');
+    const r2=await fetch(`https://api.dexscreener.com/latest/dex/tokens/${addresses}`);
+    const data=await r2.json();
+    const tokens=(data.pairs||[]).filter(p=>p.chainId==='solana');
+    const unique=new Map();
+    tokens.forEach(p=>{if(!unique.has(p.baseToken.address))unique.set(p.baseToken.address,p)});
+    document.getElementById('results').innerHTML=renderSignals([...unique.values()].slice(0,15));
+  }catch(e){
+    document.getElementById('results').innerHTML=`<div class="empty">Error: ${e.message}. Try again.</div>`;
+  }
+  scanning=false;btn.disabled=false;btn.textContent='Scan Now';
+  // Auto-refresh
+  let secs=120;
+  document.getElementById('timer').textContent=`Next scan in ${secs}s`;
+  clearInterval(refreshInterval);
+  refreshInterval=setInterval(()=>{
+    secs--;document.getElementById('timer').textContent=secs>0?`Next scan in ${secs}s`:'';
+    if(secs<=0){clearInterval(refreshInterval);scan();}
+  },1000);
+}
+
+function sharePage(){
+  const text="Free Solana token scanner - scores trending tokens 0-100 by momentum, volume and liquidity. https://darksanctum.github.io/sentinel-signals/scanner.html | Telegram bot: https://t.me/Ozymandiasz_bot";
+  if(navigator.clipboard)navigator.clipboard.writeText(text).then(()=>alert('Copied! Share it everywhere.'));
+  else{prompt('Copy this:',text);}
+}
+
+// Auto-scan on load
+window.onload=()=>scan();
+</script>
+</body>
+</html>
